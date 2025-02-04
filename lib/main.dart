@@ -282,7 +282,7 @@ class HorizontalListSection extends StatelessWidget {
                                 child: Text(
                                   title,
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                   ),
