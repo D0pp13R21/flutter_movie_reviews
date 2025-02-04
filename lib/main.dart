@@ -276,7 +276,7 @@ class HorizontalListSection extends StatelessWidget {
                                 ),
                               ),
                               SizedBox(height: 8),
-                              // Título do item: agora com maxLines definido como 1
+                              // Título do item: exibe apenas uma linha com reticências caso seja muito longo
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 4),
                                 child: Text(
@@ -287,9 +287,8 @@ class HorizontalListSection extends StatelessWidget {
                                     color: Colors.white,
                                   ),
                                   textAlign: TextAlign.center,
-                                  maxLines: 1, // Limita a 1 linha
-                                  overflow: TextOverflow
-                                      .ellipsis, // Exibe reticências se ultrapassar
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               SizedBox(height: 4),
@@ -368,7 +367,6 @@ Future<List<dynamic>> fetchTopRatedTV() async {
 }
 
 // 5. Piores Filmes e Séries
-// Utiliza os endpoints "discover" para filmes e TV ordenados por avaliação ascendente
 Future<List<dynamic>> fetchWorstMoviesAndTV() async {
   final urlMovies =
       "https://api.themoviedb.org/3/discover/movie?api_key=$tmdbApiKey&language=pt-BR&sort_by=vote_average.asc&vote_count.gte=100&page=1";
@@ -394,8 +392,6 @@ Future<List<dynamic>> fetchWorstMoviesAndTV() async {
 
 // =====================================================================
 // FUNÇÃO DE PESQUISA NA TMDb
-// Utiliza o endpoint "search/multi" para buscar filmes e séries
-// =====================================================================
 Future<List<dynamic>> searchTMDb(String query) async {
   final url =
       "https://api.themoviedb.org/3/search/multi?api_key=$tmdbApiKey&language=pt-BR&query=$query&page=1&include_adult=false";
@@ -518,7 +514,8 @@ class SearchResultScreen extends StatelessWidget {
 
 // =====================================================================
 // TELA DE DETALHE (MovieDetailScreen)
-// Exibe detalhes completos de um item (filme ou série) obtidos via TMDb
+// Exibe detalhes completos de um item (filme ou série) obtidos via TMDb,
+// incluindo informações sobre os streaming (watch providers).
 // =====================================================================
 class MovieDetailScreen extends StatelessWidget {
   final int id; // ID do item na TMDb
@@ -526,7 +523,7 @@ class MovieDetailScreen extends StatelessWidget {
 
   MovieDetailScreen({required this.id, required this.mediaType});
 
-  // Função para buscar os detalhes do item via TMDb
+  // Função para buscar os detalhes do item e os dados de watch providers via TMDb
   Future<Map<String, dynamic>> fetchDetails() async {
     String url = "";
     if (mediaType == "movie") {
@@ -538,7 +535,26 @@ class MovieDetailScreen extends StatelessWidget {
     }
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
-      return json.decode(response.body);
+      final details = json.decode(response.body);
+
+      // Agora, busca as informações de streaming (watch providers)
+      String providersUrl = "";
+      if (mediaType == "movie") {
+        providersUrl =
+            "https://api.themoviedb.org/3/movie/$id/watch/providers?api_key=$tmdbApiKey";
+      } else {
+        providersUrl =
+            "https://api.themoviedb.org/3/tv/$id/watch/providers?api_key=$tmdbApiKey";
+      }
+      final providersResponse = await http.get(Uri.parse(providersUrl));
+      if (providersResponse.statusCode == 200) {
+        final providersData = json.decode(providersResponse.body);
+        // Adiciona os dados de providers aos detalhes
+        details["providers"] = providersData;
+      } else {
+        details["providers"] = null;
+      }
+      return details;
     }
     throw Exception("Falha ao carregar detalhes");
   }
@@ -550,6 +566,7 @@ class MovieDetailScreen extends StatelessWidget {
         title: Text("Detalhes", style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.black,
       ),
+      // FutureBuilder para aguardar os dados dos detalhes e dos watch providers
       body: FutureBuilder<Map<String, dynamic>>(
         future: fetchDetails(),
         builder: (context, snapshot) {
@@ -577,17 +594,38 @@ class MovieDetailScreen extends StatelessWidget {
                 : "";
             double rating = details["vote_average"]?.toDouble() ?? 0.0;
 
+            // Processa os dados de watch providers para exibir as plataformas de streaming
+            String streamingInfo = "Não disponível";
+            if (details["providers"] != null &&
+                details["providers"]["results"] != null) {
+              // Tenta usar a região "BR" ou "US" se "BR" não estiver disponível
+              Map<String, dynamic>? regionData = details["providers"]["results"]
+                      ["BR"] ??
+                  details["providers"]["results"]["US"];
+              if (regionData != null && regionData["flatrate"] != null) {
+                // "flatrate" indica serviços de streaming por assinatura
+                List<dynamic> providers = regionData["flatrate"];
+                // Cria uma lista com os nomes dos provedores
+                List<String> providerNames = providers
+                    .map((provider) => provider["provider_name"].toString())
+                    .toList();
+                streamingInfo = providerNames.join(", ");
+              }
+            }
+
             return SingleChildScrollView(
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Exibe o pôster centralizado, se disponível
                     if (posterUrl.isNotEmpty)
                       Center(
                         child: Image.network(posterUrl, height: 400),
                       ),
                     SizedBox(height: 16),
+                    // Título com destaque em vermelho
                     Text(
                       title,
                       style: TextStyle(
@@ -596,21 +634,37 @@ class MovieDetailScreen extends StatelessWidget {
                           color: Colors.red),
                     ),
                     SizedBox(height: 8),
+                    // Data de lançamento
                     Text(
                       "Data: ${date.length >= 10 ? date.substring(0, 10) : date}",
                       style: TextStyle(fontSize: 18),
                     ),
                     SizedBox(height: 8),
+                    // Nota do item
                     Text(
                       "Nota: ${rating.toString()}",
                       style: TextStyle(fontSize: 18),
                     ),
                     SizedBox(height: 16),
+                    // Sinopse/overview
                     Text(
                       overview,
                       style: TextStyle(fontSize: 16),
                     ),
                     SizedBox(height: 16),
+                    // Exibe as plataformas de streaming disponíveis
+                    Text(
+                      "Disponível em:",
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      streamingInfo,
+                      style: TextStyle(fontSize: 16),
+                    ),
                   ],
                 ),
               ),
