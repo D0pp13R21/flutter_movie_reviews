@@ -48,7 +48,7 @@ Este projeto foi criado **únicamente para fins acadêmicos** e **não possui ne
 1. **Clone o repositório:**
 
    ```bash
-   git clone https://github.com/seu-usuario/filmes-reviews.git
+   git clone https://github.com/D0pp13R21/flutter_movie_reviews
    cd filmes-reviews
    ```
 
